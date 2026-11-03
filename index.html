@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎⚡︎</title>
+<style>
+  :root {
+    --bg: #e8e8e8;
+    --ink: #1a1a1a;
+    --panel: rgba(255,255,255,.55);
+    --edge: rgba(0,0,0,.09);
+    --rule: rgba(0,0,0,.25);
+    --btn: rgba(0,0,0,.16);
+    --btn-hover: rgba(0,0,0,.42);
+  }
+  /* the canvas clear + fog colours are mirrored in THEMES in main.js —
+     keep the two in step or the page and the field disagree at the edges */
+  :root[data-theme="dark"] {
+    --bg: rgba(8, 9, 12, 1);
+    --ink: #FFFFFF;
+    --panel: rgba(8, 9, 12, 0.3)
+    --edge: rgba(255,255,255,.55);
+    --rule: rgba(255,255,255,.55);
+    --btn: rgba(255,255,255,.55);
+    --btn-hover: rgba(255,255,255,.55);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg);
+    font: 11px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  #gl { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
+  #gl.pointing { cursor: pointer; }
+  #gl.dragging, #gl.dragging.pointing { cursor: grabbing; }
+
+  /* ---- start / loading gate ---- */
+  #gate {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: var(--bg);
+    transition: opacity .6s ease;
+  }
+  #gate.hidden { opacity: 0; pointer-events: none; }
+  #gate h1 {
+    margin: 0; font: inherit; font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; opacity: .55;
+  }
+  #bar { width: 210px; height: 1px; background: var(--btn); position: relative; }
+  #bar i { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--ink); transition: width .2s linear; }
+  #enter {
+    font: inherit; letter-spacing: .18em; text-transform: uppercase;
+    padding: 9px 20px; border: 1px solid var(--rule); border-radius: 999px;
+    background: transparent; color: var(--ink); cursor: pointer;
+    opacity: 0; pointer-events: none; transition: opacity .35s ease, background .18s ease, color .18s ease;
+  }
+  #enter.on { opacity: 1; pointer-events: auto; }
+  #enter:hover { background: var(--ink); color: var(--bg); }
+  #note { font-size: 10px; opacity: .38; letter-spacing: .04em; }
+
+  /* ---- controls ---- */
+  #ui {
+    position: fixed; top: 16px; left: 16px; z-index: 10;
+    width: 240px; padding: 16px;
+    background: var(--panel);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #ui.hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+  #ui .title {
+    font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+    opacity: .45; margin-bottom: 11px;
+  }
+  .row { margin-bottom: 9px; }
+  .row label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; opacity: .62;
+    margin-bottom: 4px;
+  }
+  .row label b { font-weight: 400; font-variant-numeric: tabular-nums; opacity: .85; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 12px; background: transparent; cursor: ew-resize; display: block;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--rule); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px;
+    border-radius: 50%; background: var(--ink);
+  }
+  input[type=range]::-moz-range-track { height: 1px; background: var(--rule); }
+  input[type=range]::-moz-range-thumb { width: 9px; height: 9px; border: 0; border-radius: 50%; background: var(--ink); }
+  /* segmented switch — the lit segment is the readout, so no value label */
+  .switch { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--btn); }
+  .switch button {
+    font: inherit; font-size: 9px; letter-spacing: .06em;
+    padding: 4px 0; border: 0; border-left: 1px solid var(--btn);
+    background: transparent; color: var(--ink); cursor: pointer; opacity: .6;
+  }
+  .switch button:first-child { border-left: 0; }
+  .switch button:hover { opacity: 1; }
+  .switch button.on { background: var(--ink); color: var(--bg); opacity: 1; }
+
+  .btns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; }
+  .btns button {
+    font: inherit; font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 4px 8px; border: 1px solid var(--btn); background: transparent;
+    color: var(--ink); cursor: pointer; opacity: .72;
+  }
+  .btns button:hover { opacity: 1; border-color: var(--btn-hover); }
+  .btns button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); opacity: 1; }
+  #hint {
+    display: none;
+    position: fixed; bottom: 14px; left: 16px; z-index: 10;
+    font-size: 9.5px; letter-spacing: .09em; opacity: .3; pointer-events: none;
+  }
+  #fps {
+    position: fixed; bottom: 14px; right: 16px; z-index: 10;
+    font-size: 9.5px; letter-spacing: .09em; opacity: .3;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  @media (max-width: 640px) { #ui { width: 172px; } #hint { display: none; } }
+</style>
+<script>
+  // resolve the theme before first paint, otherwise a dark-mode visitor gets
+  // a flash of the light field while main.js is still loading
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('lcis-theme'); } catch (e) {}
+    var dark = saved ? saved === 'dark'
+                     : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  })();
+</script>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<div id="ui" class="hidden">
+  <div class="title">Lightning · particle field</div>
+
+  <div class="row"><label>Clips <b id="v-count">91</b></label>
+    <input id="c-count" type="range" min="1" max="91" step="1" value="91"></div>
+
+  <div class="row"><label>Live decode <b id="v-budget">48</b></label>
+    <input id="c-budget" type="range" min="4" max="91" step="1" value="48"></div>
+
+  <div class="row"><label>Playback</label>
+    <div class="switch" id="c-rate">
+      <button data-rate="0.25">.25&times;</button>
+      <button data-rate="0.5" class="on">.5&times;</button>
+      <button data-rate="0.75">.75&times;</button>
+      <button data-rate="1" >1&times;</button>
+    </div></div>
+
+  <div class="row"><label>Scale <b id="v-scale">0.20</b></label>
+    <input id="c-scale" type="range" min="0.04" max="1.5" step="0.01" value="0.20"></div>
+
+  <div class="row"><label>Spread <b id="v-spread">1100</b></label>
+    <input id="c-spread" type="range" min="300" max="5000" step="10" value="1100"></div>
+
+  <div class="row"><label>Orbit speed <b id="v-speed">0.12</b></label>
+    <input id="c-speed" type="range" min="0" max="0.6" step="0.005" value="0.12"></div>
+
+  <div class="row"><label>Flatten <b id="v-flat">0.50</b></label>
+    <input id="c-flat" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+
+  <div class="row"><label>Depth haze <b id="v-fog">0.12</b></label>
+    <input id="c-fog" type="range" min="0" max="1" step="0.01" value="0.12"></div>
+
+  <div class="btns">
+    <button id="b-cross">All marks</button>
+    <button id="b-spin" class="on">Drift</button>
+    <button id="b-11">True px</button>
+    <button id="b-shuffle">Reseed</button>
+    <button id="b-theme">Dark</button>
+  </div>
+</div>
+
+<div id="hint">click · centre &nbsp;/&nbsp; drag · orbit &nbsp;/&nbsp; scroll · zoom &nbsp;/&nbsp; esc · release &nbsp;/&nbsp; h · panel &nbsp;/&nbsp; space · freeze &nbsp;/&nbsp; d · theme</div>
+<div id="fps"></div>
+
+<div id="gate">
+  <h1>20 mins of thunderstorm footage in Bergamo, Italy</h1>
+  <div id="bar"><i></i></div>
+  <button id="enter">Start</button>
+  <div id="note">91 clips · sound off</div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
